@@ -6,11 +6,10 @@ import type { GeneratedQuestion } from "@/lib/types";
 
 // pdf-parse v1 is CJS only
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-// const pdfParse = require("pdf-parse");
+const pdfParse = require("pdf-parse");
 
 export async function POST(req: NextRequest) {
   try {
-    const pdfParse = await import("pdf-parse");
     const formData = await req.formData();
     const file = formData.get("resume") as File | null;
     const candidateName = formData.get("candidateName") as string;
