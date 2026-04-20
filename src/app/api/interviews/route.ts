@@ -40,6 +40,16 @@ export async function POST(req: NextRequest) {
 
       pdfParser.on("pdfParser_dataReady", (pdfData: unknown) => {
         try {
+          // Helper function to safely decode URI-encoded text
+          const safeDecode = (encoded: string): string => {
+            try {
+              return decodeURIComponent(encoded);
+            } catch {
+              // If decoding fails, return the original string
+              return encoded;
+            }
+          };
+
           // Extract text from all pages using the data structure
           let text = "";
 
@@ -53,8 +63,8 @@ export async function POST(req: NextRequest) {
                     if (textItem.R) {
                       for (const run of textItem.R) {
                         if (run.T) {
-                          // Decode URI-encoded text
-                          text += decodeURIComponent(run.T) + " ";
+                          // Safely decode URI-encoded text
+                          text += safeDecode(run.T) + " ";
                         }
                       }
                     }
