@@ -4,12 +4,11 @@ import openrouter from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 import type { GeneratedQuestion } from "@/lib/types";
 
-// pdf-parse v1 is CJS only
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse");
-
 export async function POST(req: NextRequest) {
   try {
+    // Dynamically import pdf-parse v2+ (class-based API)
+    const { PDFParse } = await import("pdf-parse");
+
     const formData = await req.formData();
     const file = formData.get("resume") as File | null;
     const candidateName = formData.get("candidateName") as string;
@@ -31,10 +30,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Parse PDF
+    // Parse PDF using v2 API
     const buffer = Buffer.from(await file.arrayBuffer());
-    const pdfData = await pdfParse(buffer);
-    const resumeText = pdfData.text;
+    const pdfParser = new PDFParse({ data: buffer });
+    const textResult = await pdfParser.getText();
+    const resumeText = textResult.text;
+    await pdfParser.destroy();
 
     if (!resumeText.trim()) {
       return NextResponse.json(
