@@ -10,7 +10,7 @@ import type { GeneratedQuestion } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
   try {
-    const pdfParse = await import("pdf-parse");
+    const pdfParse = (await import("pdf-parse")).default;
     const formData = await req.formData();
     const file = formData.get("resume") as File | null;
     const candidateName = formData.get("candidateName") as string;
