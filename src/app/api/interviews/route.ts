@@ -4,11 +4,12 @@ import openrouter from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 import type { GeneratedQuestion } from "@/lib/types";
 
+// Type declaration for pdf-parse v1
+type PdfParseResult = { text: string; numpages: number; info: unknown };
+type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>;
+
 export async function POST(req: NextRequest) {
   try {
-    // Dynamically import pdf-parse v2+ (class-based API)
-    const { PDFParse } = await import("pdf-parse");
-
     const formData = await req.formData();
     const file = formData.get("resume") as File | null;
     const candidateName = formData.get("candidateName") as string;
@@ -30,12 +31,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Parse PDF using v2 API
+    // Parse PDF using pdf-parse v1 (Node.js compatible)
+    // Dynamic import to avoid Next.js build issues with CommonJS
+    const pdfParse = (await import("pdf-parse")).default as PdfParseFn;
     const buffer = Buffer.from(await file.arrayBuffer());
-    const pdfParser = new PDFParse({ data: buffer });
-    const textResult = await pdfParser.getText();
-    const resumeText = textResult.text;
-    await pdfParser.destroy();
+    const pdfData = await pdfParse(buffer);
+    const resumeText = pdfData.text;
 
     if (!resumeText.trim()) {
       return NextResponse.json(
