@@ -27,32 +27,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Parse PDF using pdfjs-dist (works in serverless environments)
-    const pdfjsLib = await import("pdfjs-dist");
-
-    // Disable worker for Node.js environment
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "";
-
+    // Parse PDF using pdf2json (native Node.js, works in serverless)
+    const PDFParser = (await import("pdf2json")).default;
     const buffer = Buffer.from(await file.arrayBuffer());
-    const typedArray = new Uint8Array(buffer);
 
-    const loadingTask = pdfjsLib.getDocument({
-      data: typedArray,
-      useWorkerFetch: false,
-      isEvalSupported: false,
-      useSystemFonts: true,
+    const pdfParser = new PDFParser();
+    const resumeText = await new Promise<string>((resolve, reject) => {
+      pdfParser.on("pdfParser_dataError", (errData: Error | { parserError: Error }) => {
+        const error = errData instanceof Error ? errData : errData.parserError;
+        reject(error);
+      });
+
+      pdfParser.on("pdfParser_dataReady", () => {
+        // Extract text from all pages
+        const text = pdfParser.getRawTextContent();
+        resolve(text);
+      });
+
+      pdfParser.parseBuffer(buffer);
     });
-    const pdfDoc = await loadingTask.promise;
-
-    let resumeText = "";
-    for (let i = 1; i <= pdfDoc.numPages; i++) {
-      const page = await pdfDoc.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item) => ("str" in item ? item.str : ""))
-        .join(" ");
-      resumeText += pageText + "\n";
-    }
 
     if (!resumeText.trim()) {
       return NextResponse.json(
