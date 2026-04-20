@@ -4,10 +4,6 @@ import openrouter from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 import type { GeneratedQuestion } from "@/lib/types";
 
-// Type declaration for pdf-parse v1
-type PdfParseResult = { text: string; numpages: number; info: unknown };
-type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>;
-
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -31,12 +27,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Parse PDF using pdf-parse v1 (Node.js compatible)
-    // Dynamic import to avoid Next.js build issues with CommonJS
-    const pdfParse = (await import("pdf-parse")).default as PdfParseFn;
+    // Parse PDF using pdfjs-dist (works in serverless environments)
+    const pdfjsLib = await import("pdfjs-dist");
+
+    // Disable worker for Node.js environment
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+
     const buffer = Buffer.from(await file.arrayBuffer());
-    const pdfData = await pdfParse(buffer);
-    const resumeText = pdfData.text;
+    const typedArray = new Uint8Array(buffer);
+
+    const loadingTask = pdfjsLib.getDocument({
+      data: typedArray,
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      useSystemFonts: true,
+    });
+    const pdfDoc = await loadingTask.promise;
+
+    let resumeText = "";
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" ");
+      resumeText += pageText + "\n";
+    }
 
     if (!resumeText.trim()) {
       return NextResponse.json(
