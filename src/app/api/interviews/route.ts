@@ -38,16 +38,49 @@ export async function POST(req: NextRequest) {
         reject(error);
       });
 
-      pdfParser.on("pdfParser_dataReady", () => {
-        // Extract text from all pages
-        const text = pdfParser.getRawTextContent();
-        resolve(text);
+      pdfParser.on("pdfParser_dataReady", (pdfData: unknown) => {
+        try {
+          // Extract text from all pages using the data structure
+          let text = "";
+
+          if (pdfData && typeof pdfData === 'object' && 'Pages' in pdfData) {
+            const data = pdfData as { Pages?: Array<{ Texts?: Array<{ R?: Array<{ T?: string }> }> }> };
+
+            if (data.Pages) {
+              for (const page of data.Pages) {
+                if (page.Texts) {
+                  for (const textItem of page.Texts) {
+                    if (textItem.R) {
+                      for (const run of textItem.R) {
+                        if (run.T) {
+                          // Decode URI-encoded text
+                          text += decodeURIComponent(run.T) + " ";
+                        }
+                      }
+                    }
+                  }
+                  text += "\n";
+                }
+              }
+            }
+          }
+
+          // Fallback to getRawTextContent if data structure parsing fails
+          if (!text.trim() && typeof pdfParser.getRawTextContent === 'function') {
+            text = pdfParser.getRawTextContent();
+          }
+
+          resolve(text);
+        } catch (err) {
+          reject(err);
+        }
       });
 
       pdfParser.parseBuffer(buffer);
     });
 
     if (!resumeText.trim()) {
+      console.error("PDF parsing resulted in empty text");
       return NextResponse.json(
         { error: "Could not extract text from PDF" },
         { status: 400 }
