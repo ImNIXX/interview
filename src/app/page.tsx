@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import {
   Plus,
   Clock,
@@ -11,6 +12,7 @@ import {
   BarChart3,
   User,
   ArrowRight,
+  LogOut,
 } from "lucide-react";
 
 interface Interview {
@@ -30,6 +32,7 @@ interface Interview {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,6 +49,10 @@ export default function DashboardPage() {
   const completed = interviews.filter((i) => i.status === "completed");
   const pending = interviews.filter((i) => i.status !== "completed");
 
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: "/login" });
+  };
+
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
       <nav className="border-b border-gray-800 bg-gray-900/50 backdrop-blur">
@@ -54,13 +61,32 @@ export default function DashboardPage() {
             <FileText className="w-6 h-6 text-blue-400" />
             <h1 className="text-xl font-bold text-white">Interview Platform</h1>
           </div>
-          <button
-            onClick={() => router.push("/interview/new")}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            New Interview
-          </button>
+          <div className="flex items-center gap-4">
+            {session?.user && (
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-sm font-medium text-white">
+                    {session.user.name}
+                  </p>
+                  <p className="text-xs text-gray-500">{session.user.email}</p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition"
+                  title="Logout"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => router.push("/interview/new")}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              New Interview
+            </button>
+          </div>
         </div>
       </nav>
 

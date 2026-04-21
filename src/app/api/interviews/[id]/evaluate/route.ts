@@ -2,13 +2,41 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import openrouter from "@/lib/openai";
 // import { gemini } from "@/lib/gemini";
+import { auth } from "@/auth";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get authenticated user
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
+
+    // Check ownership first
+    const interview = await prisma.interview.findUnique({
+      where: { id },
+      include: { candidate: true },
+    });
+
+    if (!interview) {
+      return NextResponse.json(
+        { error: "Interview not found" },
+        { status: 404 }
+      );
+    }
+
+    if (interview.userId !== session.user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await req.json();
     const { evaluations } = body as {
       evaluations: {
@@ -51,17 +79,12 @@ export async function POST(
 
     const scorePercent = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
 
-    // Generate AI feedback summary
-    const interview = await prisma.interview.findUnique({
-      where: { id },
-      include: { candidate: true },
-    });
-
+    // Generate AI feedback summary (using interview we already fetched)
     const feedbackPrompt = buildFeedbackPrompt(
-      interview!.candidate.name,
+      interview.candidate.name,
       questions,
       scorePercent,
-      interview!.duration
+      interview.duration
     );
 
     // --- Gemini (commented out) ---

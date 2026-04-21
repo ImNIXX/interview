@@ -7,6 +7,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        String      @id @default(cuid())
+  name      String
+  email     String      @unique
+  password  String
+  createdAt DateTime    @default(now())
+  interviews Interview[]
+}
+
 model Candidate {
   id        String      @id @default(cuid())
   name      String
@@ -21,6 +30,8 @@ model Interview {
   id            String     @id @default(cuid())
   candidateId   String
   candidate     Candidate  @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   duration      Int        // 30 or 60 minutes
   status        String     @default("pending") // pending, in_progress, completed
   totalScore    Float?

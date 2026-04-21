@@ -3,9 +3,19 @@ import openrouter from "@/lib/openai";
 // import { gemini } from "@/lib/gemini";
 import { prisma } from "@/lib/prisma";
 import type { GeneratedQuestion } from "@/lib/types";
+import { auth } from "@/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    // Get authenticated user
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const formData = await req.formData();
     const file = formData.get("resume") as File | null;
     const candidateName = formData.get("candidateName") as string;
@@ -118,6 +128,7 @@ export async function POST(req: NextRequest) {
         { role: "user", content: prompt },
       ],
       temperature: 0.7,
+      max_tokens: 16000,
       response_format: { type: "json_object" },
     });
     const responseText = completion.choices[0]?.message?.content;
@@ -147,7 +158,35 @@ export async function POST(req: NextRequest) {
     // and replace raw control chars with their escape sequences.
     jsonText = sanitizeJsonStrings(jsonText);
 
-    const parsed = JSON.parse(jsonText);
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch (parseError) {
+      // If JSON is truncated/malformed, try to fix common issues
+      // 1. Try closing any unterminated strings and brackets
+      let fixedJson = jsonText;
+
+      // If the response was cut off, try to close it properly
+      // Remove any trailing incomplete object/entry
+      const lastCompleteObj = fixedJson.lastIndexOf("}");
+      if (lastCompleteObj !== -1) {
+        fixedJson = fixedJson.substring(0, lastCompleteObj + 1);
+        // Ensure we close the questions array and outer object
+        if (!fixedJson.endsWith("]}")) {
+          fixedJson += "]}";
+        }
+      }
+
+      try {
+        parsed = JSON.parse(fixedJson);
+      } catch {
+        console.error("AI response JSON parse failed. Raw response:", responseText.substring(0, 500));
+        return NextResponse.json(
+          { error: "AI returned malformed response. Please try again." },
+          { status: 500 }
+        );
+      }
+    }
     const questions: GeneratedQuestion[] = parsed.questions;
 
     // Save candidate
@@ -164,6 +203,7 @@ export async function POST(req: NextRequest) {
     const interview = await prisma.interview.create({
       data: {
         candidateId: candidate.id,
+        userId: session.user.id,
         duration,
         status: "pending",
         questions: {
