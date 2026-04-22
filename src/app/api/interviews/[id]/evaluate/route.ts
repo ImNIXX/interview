@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import openrouter from "@/lib/openai";
-// import { gemini } from "@/lib/gemini";
+import groq from "@/lib/openai";
 import { auth } from "@/auth";
 
 export async function POST(
@@ -87,14 +86,9 @@ export async function POST(
       interview.duration
     );
 
-    // --- Gemini (commented out) ---
-    // const systemPrompt = "You are an expert interviewer...";
-    // const result = await gemini.generateContent({ ... });
-    // const feedbackSummary = result.response.text() || "Unable to generate feedback.";
-
-    // --- OpenRouter ---
-    const completion = await openrouter.chat.completions.create({
-      model: "google/gemini-2.0-flash-001",
+    // --- Groq ---
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
       messages: [
         {
           role: "system",

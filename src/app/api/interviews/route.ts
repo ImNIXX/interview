@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import openrouter from "@/lib/openai";
-// import { gemini } from "@/lib/gemini";
+import groq from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 import type { GeneratedQuestion } from "@/lib/types";
 import { auth } from "@/auth";
@@ -111,14 +110,9 @@ export async function POST(req: NextRequest) {
     const questionCount = duration === 30 ? 15 : 30;
     const prompt = buildPrompt(resumeText, duration, questionCount, role);
 
-    // --- Gemini (commented out) ---
-    // const systemPrompt = "You are an expert technical interviewer...";
-    // const result = await gemini.generateContent({ ... });
-    // const responseText = result.response.text();
-
-    // --- OpenRouter ---
-    const completion = await openrouter.chat.completions.create({
-      model: "google/gemini-2.0-flash-001",
+    // --- Groq ---
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
       messages: [
         {
           role: "system",
@@ -128,7 +122,7 @@ export async function POST(req: NextRequest) {
         { role: "user", content: prompt },
       ],
       temperature: 0.7,
-      max_tokens: 16000,
+      max_tokens: 4000,
       response_format: { type: "json_object" },
     });
     const responseText = completion.choices[0]?.message?.content;
@@ -246,24 +240,23 @@ function buildPrompt(
     ? `\nROLE FOCUS: The interview is specifically for a "${role}" position. Focus ALL questions on skills, technologies, and scenarios relevant to this role. Even if the resume lists other skills, only ask questions relevant to the "${role}" role.\n`
     : "";
 
-  return `Based on this candidate's resume, generate ${questionCount} interview questions for a ${duration}-minute interview.
+  return `Generate ${questionCount} interview questions for ${duration}min interview.
 ${roleInstruction}
 RESUME:
-${resumeText.substring(0, 6000)}
+${resumeText.substring(0, 1500)}
 
-DISTRIBUTION: Generate exactly ${categoryDistribution} questions.
+Generate exactly ${categoryDistribution}.
+Categories: theoretical, logical, tricky, hands_on
+Difficulty: easy 30%, medium 50%, hard 20%
+Keep expectedAnswer to 1-2 sentences max.
 
-CATEGORIES:
-- theoretical: Conceptual knowledge questions about technologies on the resume
-- logical: Problem-solving, algorithmic thinking, system design reasoning
-- tricky: Edge cases, gotchas, common misconceptions about their tech stack
-- hands_on: Practical coding scenarios, "how would you implement..." questions
+CRITICAL RULES:
+- Every question MUST be complete and self-contained.
+- NEVER say "Given the following code" without including actual code in the questionText.
+- For logical/code questions, include the full code snippet inside questionText.
+- For hands_on questions, describe the task clearly, don't reference external code.
 
-DIFFICULTY: Mix of easy (30%), medium (50%), hard (20%)
-
-IMPORTANT: Questions must be specific to the candidate's skills and experience listed in the resume. Each question should have a detailed expected answer.
-
-Return JSON in this exact format:
+Return JSON:
 {
   "questions": [
     {
